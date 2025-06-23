@@ -45,12 +45,37 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY_TG_STACK }}
 
+      - name: Install aha to convert plan output to html
+        run: sudo apt-get install aha
+
       - name: Terragrunt stack generate, validate, and plan on ${{ matrix.env }}
         run: |
           cd live/${{ matrix.env }}
           terragrunt stack generate
           terragrunt run --all validate --no-stack-generate
-          terragrunt run --all plan --no-stack-generate
+          terragrunt run --all plan --no-stack-generate > prod-plan-output.txt
+          cat prod-plan-output.txt | aha --black > prod-plan-output.html
+
+      - name: Upload plan output (prod)
+        if: matrix.env == 'prod'
+        id: upload_plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terragrunt-prod-plan
+          path: live/prod/prod-plan-output.html
+
+      #- name: Comment plan link on PR
+      #  uses: peter-evans/create-or-update-comment@v4
+      #  with:
+      #    issue-number: ${{ github.event.pull_request.number }}
+      #    body: |
+      #      :warning: **Production Plan Available**
+
+      #      [Download and review the HTML plan artifact](${{ steps.upload-plan-html.outputs.artifact-url }})
+
+      #      Please review the plan carefully.  
+      #      :exclamation: **Upon merging this PR, the plan will be applied to production!**
+
 
   terratest:
     runs-on: ubuntu-latest
