@@ -2,3 +2,4 @@
 opentofu = "1.9.1"
 terragrunt = "0.81.7"
 python = "3.13.1"
+go = "1.24"
