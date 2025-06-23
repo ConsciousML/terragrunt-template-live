@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: terragrunt-hcl-format
+        name: terragrunt hcl format
+        entry: terragrunt hcl format
+        language: system
+        types: [file]
+        files: \.hcl$
