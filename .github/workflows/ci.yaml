@@ -46,6 +46,8 @@ jobs:
           terragrunt stack generate
           terragrunt stack run validate --no-stack-generate
           terragrunt stack run plan --no-stack-generate
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   terratest:
     runs-on: ubuntu-latest
@@ -75,3 +77,5 @@ jobs:
 
       - name: Run Terratest
         run: go test -v ./tests/... -timeout 30m
+        env:
+          GH_TOKEN: ${{ github.token }}
