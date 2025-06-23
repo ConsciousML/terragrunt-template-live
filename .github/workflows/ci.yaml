@@ -50,7 +50,14 @@ jobs:
           cd live/${{ matrix.env }}
           terragrunt stack generate
           terragrunt run --all validate --no-stack-generate
-          terragrunt run --all plan --no-stack-generate
+          terragrunt run --all plan --no-stack-generate > prod-plan-output.txt
+
+      - name: Upload plan output (prod)
+        if: matrix.env == 'prod'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terragrunt-prod-plan
+          path: live/prod/prod-plan-output.txt
 
   terratest:
     runs-on: ubuntu-latest
