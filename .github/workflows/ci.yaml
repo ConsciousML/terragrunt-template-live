@@ -6,14 +6,32 @@ on:
       - main
   workflow_dispatch:
 
-# Prevent CI to run concurrently
 concurrency:
   group: ci-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  CI:
+  hcl-format-check:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v2.2.3
+
+      - name: Check if .hcl files are formated
+        run: terragrunt hcl format --check
+
+  terragrunt-validate-plan:
+    runs-on: ubuntu-latest
+    needs: hcl-format-check
+    strategy:
+      matrix:
+        env:
+          - dev
+          - staging
+          - prod
 
     steps:
       - name: Checkout code
@@ -21,43 +39,39 @@ jobs:
 
       - name: Install mise
         uses: jdx/mise-action@v2.2.3
-      
-      - name: Check if .hcl files are formated
-        runs: terragrunt hcl format --check
 
-      - name: On dev, run Terragrunt stack generate and plan
+      - name: Terragrunt stack generate, validate, and plan on ${{ matrix.env }}
         run: |
-          cd live/dev
+          cd live/${{ matrix.env }}
           terragrunt stack generate
-          terragrunt stack run plan
+          terragrunt stack run validate --no-stack-generate
+          terragrunt stack run plan --no-stack-generate
 
-      - name: On staging, run Terragrunt stack generate and plan
+  terratest:
+    runs-on: ubuntu-latest
+    needs: terragrunt-validate-plan
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v2.2.3
+
+      - name: Check if PR has 'run-terratest' label
+        id: check_label
         run: |
-          cd live/staging
-          terragrunt stack generate
-          terragrunt stack run plan
+          labels=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name')
+          echo "Labels on PR: $labels"
+          if echo "$labels" | grep -qw "run-terratest"; then
+            echo "label_present=true" >> $GITHUB_OUTPUT
+          else
+            echo "The 'run-terratest' label is not present on this PR. Please add this label to run infra tests."
+            exit 1
+          fi
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }} 
+          GH_TOKEN: ${{ github.token }}
 
-      - name: On prod, run Terragrunt stack generate and plan
-        run: |
-          cd live/prod
-          terragrunt stack generate
-          terragrunt stack run plan
-
-      #- name: Check if PR has 'run-terratest' label
-      #  id: check_label
-      #  run: |
-      #    labels=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name')
-      #    echo "Labels on PR: $labels"
-      #    if echo "$labels" | grep -qw "run-terratest"; then
-      #      echo "label_present=true" >> $GITHUB_OUTPUT
-      #    else
-      #      echo "The 'run-terratest' label is not present on this PR. Please add this label to run infra tests."
-      #      exit 1
-      #    fi
-      #  env:
-      #    PR_NUMBER: ${{ github.event.pull_request.number }} 
-      #    GH_TOKEN: ${{ github.token }}
-
-      ## Run Terratest only if label present
-      #- name: Run Terratest
-      #  run: go test -v ./tests/... -timeout 30m
+      - name: Run Terratest
+        run: go test -v ./tests/... -timeout 30m
