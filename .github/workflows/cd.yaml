@@ -1,0 +1,13 @@
+name: Empty Workflow
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This is a placeholder/empty workflow."
