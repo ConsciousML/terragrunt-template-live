@@ -49,8 +49,8 @@ jobs:
         run: |
           cd live/${{ matrix.env }}
           terragrunt stack generate
-          terragrunt stack run validate --no-stack-generate
-          terragrunt stack run plan --no-stack-generate
+          terragrunt run --all validate --no-stack-generate
+          terragrunt run --all plan --no-stack-generate
 
   terratest:
     runs-on: ubuntu-latest
