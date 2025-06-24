@@ -64,17 +64,17 @@ jobs:
           name: terragrunt-prod-plan
           path: live/prod/prod-plan-output.html
 
-      #- name: Comment plan link on PR
-      #  uses: peter-evans/create-or-update-comment@v4
-      #  with:
-      #    issue-number: ${{ github.event.pull_request.number }}
-      #    body: |
-      #      :warning: **Production Plan Available**
+      - name: Comment PR
+        if: matrix.env == 'prod'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            :warning: **Production Plan Available**
 
-      #      [Download and review the HTML plan artifact](${{ steps.upload-plan-html.outputs.artifact-url }})
+            Download and review the [terragrunt plan output](${{ steps.upload-plan-html.outputs.artifact-url }}) that ran on the production environment.
 
-      #      Please review the plan carefully.  
-      #      :exclamation: **Upon merging this PR, the plan will be applied to production!**
+            Please review the plan carefully.  
+            :exclamation: **Upon merging this PR, the plan will be applied to production!**
 
 
   terratest:
