@@ -10,8 +10,9 @@ concurrency:
   group: ci-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-permissions: 
-   pull-requests: write 
+permissions:
+  pull-requests: write
+  contents: read
 
 jobs:
   hcl-format-check:
