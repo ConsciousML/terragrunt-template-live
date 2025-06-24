@@ -88,6 +88,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check if PR has 'run-terratest' label
+        id: check-label
+        run: |
+          labels=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name')
+          echo "Labels on PR: $labels"
+          if echo "$labels" | grep -qw "run-terratest"; then
+            echo "label_present=true" >> $GITHUB_OUTPUT
+          else
+            echo "label_present=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Comment PR if missing label
+        if: steps.check-label.outputs.label_present == 'false'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            :x: Please add the `run-terratest` label to this PR in order to run infrastructure tests.
+
+      - name: Fail if label missing
+        if: steps.check-label.outputs.label_present == 'false'
+        run: exit 1
+
       - name: Install mise
         uses: jdx/mise-action@v2.2.3
 
@@ -96,24 +121,12 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY_TG_STACK }}
 
-      - name: Check if PR has 'run-terratest' label
-        run: |
-          labels=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name')
-          echo "Labels on PR: $labels"
-          if echo "$labels" | grep -qw "run-terratest"; then
-            echo "label_present=true" >> $GITHUB_OUTPUT
-          else
-            echo "The 'run-terratest' label is not present on this PR. Please add this label to run infra tests."
-            exit 1
-          fi
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }} 
-          GH_TOKEN: ${{ github.token }}
+      
 
       - name: Run Terratest
         run: go test -v ./tests/... -timeout 30m
 
-  comment-tg-plan-on-r:
+  comment-tg-plan-on-pr:
     runs-on: ubuntu-latest
     needs: terratest
 
@@ -134,13 +147,12 @@ jobs:
           echo "url=$url" >> $GITHUB_OUTPUT
       
       - name: Comment PR
-        if: matrix.env == 'prod'
         uses: thollander/actions-comment-pull-request@v3
         with:
           message: |
             :warning: **Production Plan Available**
 
-            Download and review the [terragrunt plan output](${{ steps.artifact_url.outputs.url }}) that ran on the production environment.
+            Download and review the [terragrunt plan output](${{ steps.artifact-url.outputs.url }}) that ran on the production environment.
 
             **Commit:** `${{ steps.set-short-commit-sha.outputs.short_sha }}`
 
