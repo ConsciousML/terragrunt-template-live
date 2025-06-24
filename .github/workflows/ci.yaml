@@ -57,7 +57,7 @@ jobs:
           cd live/${{ matrix.env }}
           terragrunt stack generate
           terragrunt run --all validate --no-stack-generate
-          terragrunt run --all plan --no-stack-generate > prod-plan-output.txt
+          terragrunt run --all plan --no-stack-generate > ${{ matrix.env }}-plan-output.txt
           cat ${{ matrix.env }}-plan-output.txt | aha --black > prod-plan-output.html
 
       - name: Upload plan output (prod)
@@ -73,7 +73,7 @@ jobs:
         uses: thollander/actions-comment-pull-request@v3
         with:
           message: |
-            :warning: **Production Plan Available**
+            :warning: **Production Terragrunt Plan Available** produced by commit `${{ github.sha }}`
 
             Download and review the [terragrunt plan output](${{ steps.upload_plan.outputs.artifact-url }}) that ran on the production environment.
 
