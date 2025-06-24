@@ -137,7 +137,9 @@ jobs:
 
       - name: Set short commit SHA
         id: set-short-commit-sha
-        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        run: echo "short_sha=${HEAD_SHA::7}" >> $GITHUB_OUTPUT
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
       - name: Read artifact URL
         id: artifact-url
