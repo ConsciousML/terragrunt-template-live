@@ -58,7 +58,7 @@ jobs:
           terragrunt stack generate
           terragrunt run --all validate --no-stack-generate
           terragrunt run --all plan --no-stack-generate > prod-plan-output.txt
-          cat prod-plan-output.txt | aha --black > prod-plan-output.html
+          cat ${{ matrix.env }}-plan-output.txt | aha --black > prod-plan-output.html
 
       - name: Upload plan output (prod)
         if: matrix.env == 'prod'
@@ -75,7 +75,7 @@ jobs:
           message: |
             :warning: **Production Plan Available**
 
-            Download and review the [terragrunt plan output](${{ steps.upload-plan-html.outputs.artifact-url }}) that ran on the production environment.
+            Download and review the [terragrunt plan output](${{ steps.upload_plan.outputs.artifact-url }}) that ran on the production environment.
 
             Please review the plan carefully.  
             :exclamation: **Upon merging this PR, the plan will be applied to production!**
