@@ -10,6 +10,10 @@ concurrency:
   group: ci-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  pull-requests: write
+  contents: read
+
 jobs:
   hcl-format-check:
     runs-on: ubuntu-latest
@@ -53,29 +57,27 @@ jobs:
           cd live/${{ matrix.env }}
           terragrunt stack generate
           terragrunt run --all validate --no-stack-generate
-          terragrunt run --all plan --no-stack-generate > prod-plan-output.txt
-          cat prod-plan-output.txt | aha --black > prod-plan-output.html
+          terragrunt run --all plan --no-stack-generate > ${{ matrix.env }}-plan-output.txt
+          cat ${{ matrix.env }}-plan-output.txt | aha --black > prod-plan-output.html
 
       - name: Upload plan output (prod)
         if: matrix.env == 'prod'
-        id: upload_plan
+        id: upload-plan
         uses: actions/upload-artifact@v4
         with:
           name: terragrunt-prod-plan
           path: live/prod/prod-plan-output.html
 
-      #- name: Comment plan link on PR
-      #  uses: peter-evans/create-or-update-comment@v4
-      #  with:
-      #    issue-number: ${{ github.event.pull_request.number }}
-      #    body: |
-      #      :warning: **Production Plan Available**
-
-      #      [Download and review the HTML plan artifact](${{ steps.upload-plan-html.outputs.artifact-url }})
-
-      #      Please review the plan carefully.  
-      #      :exclamation: **Upon merging this PR, the plan will be applied to production!**
-
+      - name: Save artifact URL to file
+        if: matrix.env == 'prod'
+        run: echo "${{ steps.upload-plan.outputs.artifact-url }}" > artifact_url.txt
+      
+      - name: Upload artifact URL file
+        if: matrix.env == 'prod'
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-url
+          path: artifact_url.txt
 
   terratest:
     runs-on: ubuntu-latest
@@ -85,6 +87,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check if PR has 'run-terratest' label
+        id: check-label
+        run: |
+          labels=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name')
+          echo "Labels on PR: $labels"
+          if echo "$labels" | grep -qw "run-terratest"; then
+            echo "label_present=true" >> $GITHUB_OUTPUT
+          else
+            echo "label_present=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Comment PR if missing label
+        if: steps.check-label.outputs.label_present == 'false'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            :x: Please add the `run-terratest` label to this PR in order to run infrastructure tests.
+
+      - name: Fail if label missing
+        if: steps.check-label.outputs.label_present == 'false'
+        run: exit 1
+
       - name: Install mise
         uses: jdx/mise-action@v2.2.3
 
@@ -93,20 +120,42 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY_TG_STACK }}
 
-      - name: Check if PR has 'run-terratest' label
-        id: check_label
-        run: |
-          labels=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name')
-          echo "Labels on PR: $labels"
-          if echo "$labels" | grep -qw "run-terratest"; then
-            echo "label_present=true" >> $GITHUB_OUTPUT
-          else
-            echo "The 'run-terratest' label is not present on this PR. Please add this label to run infra tests."
-            exit 1
-          fi
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }} 
-          GH_TOKEN: ${{ github.token }}
+      
 
       - name: Run Terratest
         run: go test -v ./tests/... -timeout 30m
+
+  comment-tg-plan-on-pr:
+    runs-on: ubuntu-latest
+    needs: terratest
+
+    steps:
+      - name: Download artifact-url file
+        uses: actions/download-artifact@v4
+        with:
+          name: artifact-url
+
+      - name: Set short commit SHA
+        id: set-short-commit-sha
+        run: echo "short_sha=${HEAD_SHA::7}" >> $GITHUB_OUTPUT
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+      - name: Read artifact URL
+        id: artifact-url
+        run: |
+          url=$(cat artifact_url.txt)
+          echo "url=$url" >> $GITHUB_OUTPUT
+      
+      - name: Comment PR
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            :warning: **Production Plan Available**
+
+            Download and review the [terragrunt plan output](${{ steps.artifact-url.outputs.url }}) that ran on the production environment.
+
+            **Commit:** `${{ steps.set-short-commit-sha.outputs.short_sha }}`
+
+            Please review the plan carefully.  
+            :exclamation: **Upon merging this PR, the plan will be applied to production!**
