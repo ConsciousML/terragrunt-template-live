@@ -79,7 +79,6 @@ jobs:
           name: artifact-url
           path: artifact_url.txt
 
-
   terratest:
     runs-on: ubuntu-latest
     needs: terragrunt-validate-plan
