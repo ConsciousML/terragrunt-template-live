@@ -45,7 +45,7 @@ jobs:
         uses: jdx/mise-action@v2.2.3
 
       - name: Set up SSH for Terragrunt module pulls
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.DEPLOY_KEY_TG_STACK }}
 
