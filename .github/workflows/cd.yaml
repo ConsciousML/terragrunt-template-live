@@ -1,4 +1,4 @@
-name: Empty Workflow
+name: Apply on Production Environment
 
 on:
   push:
@@ -6,8 +6,27 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: cd-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
-  noop:
+  terragrunt-apply-prod:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "This is a placeholder/empty workflow."
+      - name: Checkout code
+        uses: actions/checkout@v4 
+
+      - name: Install mise
+        uses: jdx/mise-action@v2.2.3
+
+      - name: Set up SSH for Terragrunt module pulls
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_KEY_TG_STACK }}
+
+      - name: Terragrunt apply on prod
+        run: |
+          cd live/prod
+          terragrunt stack generate
+          terragrunt --non-interactive run --all apply --no-stack-generate
